@@ -12,8 +12,8 @@ def main():
             if logic.BankAppLogic.validate_pin(pin_dialog.get_pin()):
                 break
     window.show()
-
     app.exec()
+
 
 
 

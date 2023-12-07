@@ -34,7 +34,7 @@ class Account:
         return f'Account name = {self.get_name()}, Account balance = {self.get_balance()}'
 
 class SavingAccount(Account):
-        MINIMUM = 100.0
+        MINIMUM = 0.0
         RATE = .02
 
         def __init__(self, name):

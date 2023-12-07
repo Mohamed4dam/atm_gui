@@ -55,16 +55,13 @@ class AmountInputDialog(QDialog):
         except ValueError:
             QMessageBox.warning(self, "Invalid Input", "Enter a positive number.")
 class BankAppLogic(QMainWindow, Ui_MainWindow):
-    user_checking_acc = accounts.Account('Mohamed', 0.00)
-    user_saving_acc = accounts.Account('Mohamed', 100)
-
     def __init__(self):
         super().__init__()
         self.setupUi(self)
         self.data = bank_data.BankData()
         self.label_welcome_user.setText(
-            f"<html><head/><body><p><span style=\"font-size:12pt;\">Welcome, Mohamed! You got $100 from an anonymous "
-            f"account!</span></p></body></html>")
+            f"<html><head/><body><p><span style=\"font-size:18pt;\">Welcome, Mohamed!</span></p></body></html>")
+        self.load_balance_data()
 
         # Connect signals to slots
         self.pushButton_saving_deposite.clicked.connect(self.deposit_to_saving)
@@ -72,8 +69,8 @@ class BankAppLogic(QMainWindow, Ui_MainWindow):
         self.pushButton_checking_deposite.clicked.connect(self.deposit_to_checking)
         self.pushButton_checking_withdrawl.clicked.connect(self.withdraw_from_checking)
 
-    @staticmethod
-    def validate_pin(entered_pin):
+
+    def validate_pin( entered_pin):
         # You may replace this with your own PIN validation logic
         return entered_pin == bank_data.BankData.PIN
 
@@ -86,38 +83,78 @@ class BankAppLogic(QMainWindow, Ui_MainWindow):
                 # Invalid PIN, show an error message
                 print("Invalid PIN")
 
+    def load_balance_data(self):
+        try:
+            self.data.load_from_csv("file1.csv")
+            self.update_balance_labels()
+        except FileNotFoundError:
+            QMessageBox.warning(self, "File Not Found", "Data file not found. Starting with default values.")
+
+    def update_balance_labels(self):
+        self.textBrowser_checking_amount.setFontPointSize(18)
+        self.textBrowser_checking_amount.setText(f'${self.data.get_checking_balance()}')
+        self.textBrowser_saving_amount.setFontPointSize(18)
+        self.textBrowser_saving_amount.setText(f'${self.data.get_saving_balance()}')
+
+        checking_history_text = ""
+        for entry in self.data.checking_history:
+            date_str = entry[0].strftime('%Y-%m-%d %H:%M:%S')
+            amount_str = f'${entry[1]:.2f}'
+            checking_history_text += f'{date_str} - Amount: {amount_str}\n'
+
+        self.textBrowser_checking_history.setText(checking_history_text)
+
+        saving_history_text = ""
+        for entry in self.data.saving_history:
+            s_date_str = entry[0].strftime('%Y-%m-%d %H:%M:%S')
+            s_amount_str = f'${entry[1]:.2f}'
+            saving_history_text += f'{s_date_str} - Amount: {s_amount_str}\n'
+        self.textBrowser_saving_history.setText(saving_history_text)
+
+
+
+    def save_data(self):
+        self.data.save_to_csv("file1.csv")
 
     def deposit_to_saving(self):
         amount = self.get_transaction_amount()
         if amount > 0:
-            self.user_saving_acc.deposit(amount)
+            self.data.deposit_to_saving(amount)
             self.update_saving_history(amount)
-            self.textBrowser_saving_amount.setFontPointSize(18)
-            self.textBrowser_saving_amount.setText(f'${self.user_saving_acc.get_balance()}')
+            self.update_balance_labels()
+            self.save_data()
 
     def withdraw_from_saving(self):
-        amount = self.get_transaction_amount()
-        if amount > 0:
-            self.user_saving_acc.withdraw(amount)
-            self.update_saving_history(-amount)
-            self.textBrowser_saving_amount.setFontPointSize(18)
-            self.textBrowser_saving_amount.setText(f'${self.user_saving_acc.get_balance()}')
+        try:
+            amount = self.get_transaction_amount()
+            saving_balance = float(self.data.get_saving_balance())
 
+            if amount > 0 and saving_balance >= amount:
+                self.data.withdraw_from_saving(amount)
+                self.update_saving_history(-amount)
+                self.update_balance_labels()
+                self.save_data()
+        except Exception as e:
+            print(f"Error: {e}")
     def deposit_to_checking(self):
         amount = self.get_transaction_amount()
         if amount > 0:
-            self.user_checking_acc.deposit(amount)
+            self.data.deposit_to_checking(amount)
             self.update_checking_history(amount)
-            self.textBrowser_checking_amount.setFontPointSize(18)
-            self.textBrowser_checking_amount.setText(f'${self.user_checking_acc.get_balance()}')
-
+            self.update_balance_labels()
+            self.save_data()
     def withdraw_from_checking(self):
-        amount = self.get_transaction_amount()
-        if amount > 0:
-            self.user_checking_acc.withdraw(amount)
-            self.update_checking_history(-amount)
-            self.textBrowser_checking_amount.setFontPointSize(18)
-            self.textBrowser_checking_amount.setText(f'${self.user_checking_acc.get_balance()}')
+        try:
+            amount = self.get_transaction_amount()
+            checking_balance = float(self.data.get_checking_balance())
+
+            if amount > 0 and checking_balance >= amount:
+                self.data.withdraw_from_checking(amount)
+                self.update_checking_history(-amount)
+                self.update_balance_labels()
+                self.save_data()
+        except Exception as e:
+            print(f"Error: {e}")
 
 
     def get_transaction_amount(self):
@@ -127,11 +164,11 @@ class BankAppLogic(QMainWindow, Ui_MainWindow):
                 result = dialog.exec()
                 if result == QDialog.DialogCode.Accepted:
                     amount = dialog.get_amount()
-                    if amount >= 0:
+                    if amount > 0 and amount < 1008993010126691712:
                         dialog.accept()
                         return amount
                     else:
-                        QMessageBox.warning(self, "Invalid Amount", "Amount must be a non-negative number.")
+                        QMessageBox.warning(self, "Invalid Amount", "Amount must be a non-negative number and less than 10 Million.")
                 else:
                     # User canceled the dialog
                     dialog.reject()
@@ -149,16 +186,5 @@ class BankAppLogic(QMainWindow, Ui_MainWindow):
         new_text = f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')} - Amount: {amount:.2f}\n Previous: {current_text}"
         print(new_text)
         self.textBrowser_checking_history.append(new_text)
-
-    def disable_buttons(self):
-        if self.user_saving_acc.get_balance() <= 0:
-            self.pushButton_saving_withdrawl.setDisabled(True)
-        if self.user_checking_acc.get_balance() <=0:
-            self.pushButton_checking_withdrawl.setDisabled(True)
-        else:
-            self.pushButton_checking_withdrawl.setEnabled(True)
-
-    def save_to_csv(self, filename):
-        self.data.save_to_csv(filename)
 
 
